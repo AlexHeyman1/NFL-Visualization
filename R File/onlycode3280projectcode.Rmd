@@ -1,0 +1,758 @@
+---
+title: "3280 Project"
+output:
+  html_document: null
+  pdf_document: default
+---
+# Stat 3280 Final Project Code Only
+### Alex Heyman
+### 12/1/2025
+
+```{r}
+library(tidyverse)
+library(plotly)
+library(ggridges)
+library(readxl)
+library(shiny)
+library(shinyWidgets)
+```
+
+```{r}
+nfl <- read.csv("NFL.csv")
+excel_nfl <- read_excel("excelprojectdata.xlsx")
+nflqbscsv <- nfl %>% 
+  select(player_name, season, season_type, season_average_shotgun, season_average_qb_dropback) %>%
+  filter(season_type == "REG")
+  
+nflqbscsv$season <- as.factor(nflqbscsv$season)
+excel_nfl$season <- as.factor(excel_nfl$season)
+nflqbs <- left_join(excel_nfl, nflqbscsv, by = c("player_name", "season"),
+                    relationship = "many-to-many")
+nflqbs <- nflqbs %>%
+  filter(games_played_season >= 8, pass_attempts >=100)
+nflqbs$season_type <- NULL
+```
+
+# Graph 1
+```{r, warning=FALSE}
+nflqbsg1 <- nflqbs %>%
+  mutate(
+    season_num = as.numeric(as.character(season)),
+    year_bin = cut(
+      season_num,
+      breaks = c(2012, 2015, 2018, 2021, 2024, 2025),   
+      labels = c("2012-2014", "2015-2017", "2018-2020", "2021-2023", "2024"), right = FALSE),
+    over_five = season_average_rush_attempts >= 5)
+
+facet_counts <- nflqbsg1 %>%
+  group_by(year_bin) %>%
+  summarize(count_over_five = sum(over_five))
+
+
+graph1 <- ggplot(nflqbsg1, aes(x=season_average_pass_attempts, y=season_average_rush_attempts, color=over_five))+
+  geom_point(alpha=0.7)+
+  scale_color_manual(values=c("TRUE" = "blue", "FALSE" = "darkgrey"))+
+  facet_wrap(~year_bin, ncol=5)+
+  theme_minimal()+
+  labs(
+    title="Avg Pass Attempts and Avg Rush Attempts by Bins",
+    subtitle = "All quarterbacks with over five attempts per game are blue",
+    x = "Average Pass Attempts per Game ",
+    y= "Average Rush Attempts per Game",
+    color = "Over 5 Attempts per Game:"
+  )+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5,size = 9),
+    strip.text = element_text(size = 10, face = "bold"),
+    strip.background=element_rect(fill="#AFCBFF80"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6)) +
+  geom_text(
+    data = facet_counts,
+    aes(
+      x = -Inf, 
+      y = Inf,
+      label = paste("QBs \u2265 5:", count_over_five) # looked up how to get the >= symbol
+    ),
+    hjust = -0.1,   
+    vjust = 1.2,    
+    size = 3,
+    color = "black",
+    inherit.aes = FALSE
+  )
+graph1
+```
+
+# Graph 2 - Tableau
+<div class='tableauPlaceholder' id='viz1764024263648' style='position: relative'><noscript><a href='#'><img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;SP&#47;SPN3Y9H67&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz'  style='display:none;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='path' value='shared&#47;SPN3Y9H67' /> <param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;SP&#47;SPN3Y9H67&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /><param name='filter' value='publish=yes' /></object></div>                
+```{js}
+var divElement = document.getElementById('viz1764024263648');                    var vizElement = divElement.getElementsByTagName('object')[0];                    if ( divElement.offsetWidth > 800 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else if ( divElement.offsetWidth > 500 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else { vizElement.style.width='100%';vizElement.style.height='777px';}                     var scriptElement = document.createElement('script');                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';                    vizElement.parentNode.insertBefore(scriptElement, vizElement); 
+```
+
+# Graph 3
+
+```{r, warning=FALSE}
+nflqbsg2 <- nflqbs %>%
+  select(player_name, games_played_season, season, pass_attempts, season_average_pass_attempts) 
+graph2 <- ggplot(nflqbsg2, aes(x=season, y=season_average_pass_attempts))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2, alpha = 0.2, color = "black")+
+  stat_summary(fun = median, geom = "text", aes(label = round(after_stat(y), 1)), 
+               color = "darkred", vjust = 1.5, fontface = "bold", position = position_dodge(width = 0.75))+
+  labs(
+    title= "Boxplot of Average Pass Attempts by Season",
+    y= "Season Average Pass Atempts",
+    x = "Season"
+  )+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+graph2
+```
+
+# Graph 4 - Plotly
+
+```{r, warning=FALSE}
+nflqbsg3 <- nflqbs %>%
+  mutate(comp_bin = cut(comp_pct, breaks = c(0, 60, 65, 70, 75, 100),
+                        labels = c("50-60%", "60–65%", "65–70%", "70–75%", ">75%")))
+
+graph3 <- plot_ly(
+  data = nflqbsg3,
+  x = ~comp_pct,
+  y = ~season_average_passing_yards,
+  size = ~season_passing_yards,
+  frame = ~season,
+  color = ~comp_bin,
+  type = 'scatter',
+  mode = 'markers',
+  marker = list(line = list(width = 1, color = 'black')),
+  text = ~paste(
+  "Player:", player_name,
+  "<br>Season:", season,
+  "<br>Avg Yards/Game:", round(season_average_passing_yards, 1),
+  "<br>Total Passing Yards:", season_passing_yards,
+  "<br>Completion %:", round(comp_pct, 1))
+) %>%
+  layout(
+    title = list(text="Passing Yards Per Game and Completion Percentage", x=0.5),
+    xaxis = list(title = "Completion Percentage"),
+    yaxis = list(title = "Passing Yards Per Game"),
+    legend = list(title = list(text = "Completion Percentages"))
+  ) %>%
+animation_opts(
+    frame = 1500,      
+    transition = 750)
+
+graph3
+```
+
+
+# Supplemental Table
+```{r summary-table, warning=FALSE, results='asis'}
+library(knitr)
+nflqbsg3_summary_neat <- nflqbsg3 %>%
+  group_by(season) %>%
+  summarize(
+    avg_yards_per_game = round(mean(season_average_passing_yards, na.rm = TRUE), 1),
+    avg_completion_pct = round(mean(comp_pct, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) %>%
+  rename(
+    Season = season,
+    `Avg Yards/Game` = avg_yards_per_game,
+    `Avg Completion %` = avg_completion_pct
+  ) %>%
+  arrange(Season)
+cat('<div style="font-size:12px; width:50%; ">')
+knitr::kable(
+  nflqbsg3_summary_neat)
+cat('</div>')
+```
+
+# Graph 5
+
+```{r, warning=FALSE}
+nflqbsg4 <- nflqbs
+means <- nflqbsg4 %>%
+  group_by(season) %>%
+  summarize(mean_int = mean(interception))
+graph4 <-  ggplot(nflqbsg4, aes(x = interception, y = season, fill = season)) +
+  geom_density_ridges(alpha = 0.7, color = "lightgrey", scale=0.9) +
+  geom_point(data = means, aes(x = mean_int, y = season), color = "red", size = 2)+
+   geom_text(data = means,
+            aes(x = mean_int, y = season, label = round(mean_int, 1)),
+            color = "black", size = 2.5, fontface = "bold", nudge_y = 0.5)+
+  labs(
+    title = "Distribution of Interceptions by Season",
+    subtitle = "Mean interceptions by season indicated by red dot",
+    x = "Interceptions",
+    y = "Season"
+  ) +
+  scale_fill_manual(values = c("maroon3", "coral", "darkcyan", "brown2", "aquamarine","yellow2", "violet", "darkgoldenrod2", "cornflowerblue", "darkolivegreen", "darkmagenta", "deepskyblue", "chocolate"))+
+  theme_ridges() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5),          
+    axis.title.x = element_text(hjust = 0.5),   
+    axis.title.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5,size = 9))
+
+graph4
+```
+
+# Graph 6
+
+```{r, warning=FALSE}
+nflqbsg5 <- nflqbs %>%
+  mutate(
+    season_num = as.numeric(as.character(season)),
+    season_bin = cut(x = season_num,                             
+      breaks = c(2012, 2017, 2021, 2025),   
+      labels = c("2012-2016", "2017-2020", "2021-2024"),
+      right = FALSE),
+    label_outlier = ifelse(season_average_rush_attempts > 10, player_name, NA))
+
+graph5<-ggplot(nflqbsg5, aes(x = season_average_shotgun, y = season_average_rush_attempts, color=season_bin)) +
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE, color = "red")+
+  geom_text(aes(label = label_outlier), 
+            hjust = .5, vjust = -0.9, size = 2, color = "black") +
+  scale_color_manual(values = c( "darkcyan", "violet", "darkgoldenrod2"))+
+  labs(title = "Rushing Attempts by Formation",
+       subtitle= "Years sorted into three bins",
+       x = "Shotgun Formation",
+       y = "Rushing Attempts Per Game") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5,size = 9))
+graph5
+```
+
+# Graph 7
+
+```{r}
+nflqbsg6 <- nflqbs %>%
+  group_by(season) %>%
+  summarize(mean_db = mean(season_average_qb_dropback, na.rm=TRUE))
+graph6 <- ggplot(nflqbsg6, aes(x=season, y=mean_db, fill=season))+
+  geom_col(alpha=0.8, color="black")+
+  geom_text(aes(label = round(mean_db, 1)), vjust = -0.5, size = 3)+
+  scale_fill_manual(values = c("maroon3", "coral", "darkcyan", "brown2", "aquamarine","yellow2", "violet", "darkgoldenrod2", "cornflowerblue", "darkolivegreen", "darkmagenta", "deepskyblue", "chocolate"))+
+  labs(
+    title= "Average Quarterback Dropback by Season",
+    x= "Season",
+    y= "Avergae Dropback"
+  )+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")
+graph6
+```
+
+# Manually Adding Playoff Quarterbacks
+```{r}
+playoff_qbs <- data.frame(
+  season = c(
+    rep(2012, 12),
+    rep(2013, 12),
+    rep(2014, 12),
+    rep(2015, 12),
+    rep(2016, 12),
+    rep(2017, 12),
+    rep(2018, 12),
+    rep(2019, 12),
+    rep(2020, 13),
+    rep(2021, 14),
+    rep(2022, 14),
+    rep(2023, 13),
+    rep(2024, 14)
+  ),
+  player_name = c(
+    # 2012
+    "Joe Flacco","Alex Smith","Tom Brady","Matt Ryan","Matt Schaub",
+    "Russell Wilson","Aaron Rodgers","Peyton Manning","Andrew Luck",
+    "Christian Ponder","Andy Dalton","Robert Griffin",
+    
+    # 2013
+    "Peyton Manning","Andrew Luck","Colin Kaepernick","Drew Brees",
+    "Russell Wilson","Tom Brady","Alex Smith","Philip Rivers",
+    "Andy Dalton","Cam Newton","Nick Foles","Aaron Rodgers",
+    
+    # 2014
+    "Tom Brady","Andrew Luck","Russell Wilson","Joe Flacco","Aaron Rodgers",
+    "Tony Romo","Cam Newton","Ben Roethlisberger","Matthew Stafford",
+    "Peyton Manning","Andy Dalton","Drew Stanton",
+    
+    # 2015
+    "Cam Newton","Tom Brady","Carson Palmer","Ben Roethlisberger",
+    "Peyton Manning","Russell Wilson","Aaron Rodgers","Alex Smith",
+    "Kirk Cousins","Teddy Bridgewater","Brian Hoyer","Andy Dalton",
+    
+    # 2016
+    "Tom Brady","Matt Ryan","Aaron Rodgers","Ben Roethlisberger",
+    "Russell Wilson","Brock Osweiler","Dak Prescott","Eli Manning",
+    "Matthew Stafford","Alex Smith","Ryan Tannehill","Derek Carr",
+    
+    # 2017
+    "Tom Brady","Carson Wentz","Drew Brees","Blake Bortles","Case Keenum",
+    "Ben Roethlisberger","Marcus Mariota","Matt Ryan","Cam Newton",
+    "Alex Smith","Jared Goff","Tyrod Taylor",
+    
+    # 2018
+    "Tom Brady","Jared Goff","Patrick Mahomes","Drew Brees","Dak Prescott",
+    "Philip Rivers","Carson Wentz","Andrew Luck","Mitchell Trubisky",
+    "Deshaun Watson","Russell Wilson","Lamar Jackson",
+    
+    # 2019
+    "Patrick Mahomes","Deshaun Watson","Russell Wilson","Aaron Rodgers",
+    "Jimmy Garoppolo","Kirk Cousins","Ryan Tannehill","Lamar Jackson",
+    "Josh Allen","Tom Brady","Drew Brees","Carson Wentz",
+    
+    # 2020
+    "Tom Brady","Patrick Mahomes","Josh Allen","Aaron Rodgers",
+    "Ben Roethlisberger","Baker Mayfield","Drew Brees","Lamar Jackson",
+    "Jared Goff","Philip Rivers","Mitchell Trubisky","Russell Wilson",
+    "Ryan Tannehill",
+    
+    # 2021
+    "Matthew Stafford","Joe Burrow","Patrick Mahomes","Josh Allen","Tom Brady",
+    "Jimmy Garoppolo","Derek Carr","Jalen Hurts","Dak Prescott","Mac Jones",
+    "Aaron Rodgers","Ryan Tannehill","Ben Roethlisberger","Kyler Murray",
+    
+    # 2022
+    "Joe Burrow","Patrick Mahomes","Josh Allen","Jalen Hurts","Jimmy Garoppolo",
+    "Dak Prescott","Trevor Lawrence","Daniel Jones","Tom Brady","Kirk Cousins",
+    "Justin Herbert","Geno Smith","Lamar Jackson","Tua Tagovailoa",
+    
+    # 2023
+    "Patrick Mahomes","Jared Goff","Brock Purdy","Baker Mayfield","Jordan Love",
+    "C.J. Stroud","Lamar Jackson","Dak Prescott","Josh Allen","Matthew Stafford",
+    "Jalen Hurts","Tua Tagovailoa","Kenny Pickett",
+    
+    # 2024
+    "Jayden Daniels","Jalen Hurts","Patrick Mahomes","Josh Allen","Matthew Stafford",
+    "C.J. Stroud","Lamar Jackson","Jared Goff","Russell Wilson","Sam Darnold",
+    "Justin Herbert","Jordan Love","Baker Mayfield","Bo Nix"
+  ),
+  stringsAsFactors = FALSE
+)
+
+```
+
+# Graph 8 - Plotly
+
+```{r, warning=FALSE}
+nflqbsg7 <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes")
+  )
+graph7 <- plot_ly(
+  data = nflqbsg7,
+  x = ~season_average_rushing_yards,
+  y = ~season_average_passing_yards,
+  size = ~season_passing_yards,
+  frame = ~season,
+  color = ~made_postseason,
+  colors = c("Yes" = "blue", "No" = "orange"),
+  type = 'scatter',
+  mode = 'markers',
+  marker = list(line = list(width = 1, color = 'black')),
+  text = ~paste(
+  "Player:", player_name,
+  "<br>Season:", season,
+  "<br>Avg Passing Yards/Game:", round(season_average_passing_yards, 1),
+  "<br>Total Passing Yards:", season_passing_yards,
+  "<br>Avg Rushing Yards/Game:", round(season_average_rushing_yards, 1),
+  "<br>Total Rushing Yards:", rushing_yards)
+) %>%
+  layout(
+    title = list(text="Passing and Rushing Yards per Game", x=0.5),
+    xaxis = list(title = "Average Rushing Yards"),
+    yaxis = list(title = "Average Passing Yards"),
+    legend = list(title = list(text = "Made Postseason"))
+  ) %>%
+animation_opts(
+    frame = 1500,      
+    transition = 750)
+graph7
+
+```
+
+
+# Graph 9 - Shiny App
+```{r, eval=FALSE}
+nflqbs <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes")) %>%
+  filter(games_played_season >= 8, pass_attempts >=100)
+ui <- fluidPage(
+  
+  titlePanel("NFL Quarterbacks Visualization App"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h4("Filters:"),
+      h4("Dynamic Stats Summary"),
+      verbatimTextOutput("dynamic_stats"),
+    
+      pickerInput(
+        inputId = "season",
+        label = "Select season(s):",
+        choices = sort(unique(nflqbs$season)),
+        multiple = TRUE,
+        selected = unique(nflqbs$season),
+        options = list(`actions-box` = TRUE, `live-search` = TRUE)
+      ),
+      radioButtons(
+        inputId = "made_postseason",
+        label = "Postseason Appearance",
+        choices = c("Both" = "both", "Yes" = "Yes", "No" = "No"),
+        selected = "both"
+      ),
+      h5("Graph 1 Filters:"),
+      
+      pickerInput(
+        inputId = "highlight_qbs",
+        label = "Highlight Quarterbacks:",
+        choices = sort(unique(nflqbs$player_name)),
+        multiple = TRUE,
+        options = list(`actions-box` = TRUE, `live-search` = TRUE)
+      ),
+      
+      selectInput(
+        inputId = "fit_type",
+        label = "Trend Line Type:",
+        choices = c("Linear" = "lm", "Smooth" = "loess"),
+        selected = "lm"
+      ),
+      
+      h5("Graph 2 Filters:"),
+      selectInput(
+        inputId = "agg_method",
+        label = "Aggregation Method:",
+        choices = c("Mean" = "mean", "Median" = "median", "Total" = "sum"),
+        selected = "mean"),
+      selectInput(
+        inputId = "plot_type2",
+        label = "Plot Type:",
+        choices = c("Line Chart" = "line", "Bar Chart" = "bar"),
+        selected = "line"
+      )
+    ),
+    
+    mainPanel(
+      div(style = "text-align: center;", h4(textOutput("summary_text"))),
+      plotOutput("plot1"),
+      plotOutput("plot2")
+    )
+  )
+)
+
+
+server <- function(input, output){
+  
+  filtered_data <- reactive({
+    data <- nflqbs
+    data <- data %>% filter(season %in% input$season)
+    
+    if (input$made_postseason != "both") {
+      data <- data %>% filter(made_postseason == input$made_postseason)
+    }
+    
+    data <- data %>% mutate(highlight = if_else(player_name %in% input$highlight_qbs, "Yes", "No"))
+    
+    data
+  })
+  agg_fun <- reactive({
+    switch(input$agg_method,
+           "mean" = mean,
+           "median" = median,
+           "sum" = sum)
+  })
+  
+  output$summary_text <- renderText({
+    paste(
+      "Number of Quarterbacks Matching Filters:",
+      nrow(filtered_data())
+    )
+  })
+  
+  output$plot1 <- renderPlot({
+    data <- filtered_data()
+    
+    ggplot(data, aes(
+      x = season_average_rush_attempts,
+      y = season_average_pass_attempts,
+      color = made_postseason
+    )) +
+      geom_point(aes(alpha = highlight, size = highlight)) +
+      geom_smooth(method = input$fit_type, se = FALSE, linewidth = 1) +
+      scale_alpha_manual(values = c("Yes" = 1, "No" = 0.3), guide = "none") +
+      scale_size_manual(values = c("Yes" = 5, "No" = 2), guide = "none") +
+      labs(
+        x = "Average Rush Attempts",
+        y = "Average Pass Attempts",
+        title = "Rush vs. Pass Attempts by Quarterbacks",
+        color = "Made Postseason?"
+      ) +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+      scale_color_manual(values = c("Yes" = "royalblue", "No" = "darkorange"))
+  })
+  
+  output$plot2 <- renderPlot({
+    data <- filtered_data()
+    
+    season_trends <- data %>%
+      group_by(season, made_postseason) %>%
+      summarize(avg_rush_att = agg_fun()(season_average_rush_attempts, na.rm = TRUE),
+        .groups = "drop")
+    
+    p <- ggplot(season_trends, aes(
+      x = season,
+      y = avg_rush_att,
+      fill = made_postseason,
+      color = made_postseason))
+    
+    if (input$plot_type2 == "line") {
+      p <- p +
+        geom_line() +
+        geom_point(size = 2)
+    } else {
+      p <- p +
+        aes(x=factor(season))+
+        geom_col(position = "dodge", width=0.5)
+    }
+    
+    p +
+      labs(
+        title = "Average QB Rush Attempts by Season",
+        x = "Season",
+        y = "Average Rush Attempts",
+        color = "Postseason?",
+        fill = "Postseason?"
+      ) +
+      theme_minimal() +
+      theme(plot.title = element_text(face = "bold", hjust = 0.5)) +
+      scale_color_manual(values = c("Yes" = "royalblue", "No" = "darkorange")) +
+      scale_fill_manual(values = c("Yes" = "royalblue", "No" = "darkorange"))
+  })
+  
+  
+  
+  output$dynamic_stats <- renderPrint({
+    data <- filtered_data()
+    
+    reg_yes <- data %>% filter(made_postseason == "Yes")
+    reg_no  <- data %>% filter(made_postseason == "No")
+    
+    safe_mean <- function(x) round(mean(x, na.rm = TRUE), 1)
+    
+    cat("Summary for Current Years Selected:\n\n")
+    cat("Made Postseason:\n")
+    cat("  • Avg pass attempts/game: ", safe_mean(reg_yes$season_average_pass_attempts), "\n")
+    cat("  • Avg rush attempts/game: ", safe_mean(reg_yes$season_average_rush_attempts), "\n\n")
+    cat("Did NOT Make Postseason:\n")
+    cat("  • Avg pass attempts/game:", safe_mean(reg_no$season_average_pass_attempts), "\n")
+    cat("  • Avg rush attempts/game:", safe_mean(reg_no$season_average_rush_attempts), "\n")
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
+```
+link to app: <https://alexheyman.shinyapps.io/Stat3280Shiny1/>
+
+
+# Graph 10/11
+```{r, message=FALSE}
+nflqbsg8 <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes"),
+    made_postseason_num = if_else(made_postseason == "Yes", 1, 0),
+    season_num = as.numeric(as.character(season)),
+    season_bin = cut(x = season_num,                             
+      breaks = c(2012, 2017, 2021, 2025),   
+      labels = c("2012-2016", "2017-2020", "2021-2024"),
+      right = FALSE)
+  )
+baseline_data <- nflqbsg8 %>%
+  select(season_average_rush_attempts, made_postseason_num, season_average_pass_attempts)
+
+graph8 <- ggplot() +
+  geom_smooth(data = baseline_data, aes(x = season_average_rush_attempts, y = made_postseason_num, color = "Baseline"),
+    method = "loess",se = FALSE, alpha=0.5) +
+  geom_smooth(data = nflqbsg8, aes(x = season_average_rush_attempts,y = made_postseason_num, color = season_bin),
+    method = "loess",se = FALSE) +
+  scale_color_manual(values=c("2012-2016"="chocolate", "2017-2020"="violet", "2021-2024"="cornflowerblue", "Baseline"="grey"))+
+  labs(
+    title = "Probability of Making Playoffs vs Avg Rush Attempts",
+    x = "Avg Rush Attempts per Game",
+    y = "Probability of Making Playoffs",
+    color = "Era"
+  )+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5))
+graph8
+graph9 <- ggplot() +
+  geom_smooth(data = baseline_data, aes(x = season_average_pass_attempts, y = made_postseason_num, color = "Baseline"),
+    method = "loess",se = FALSE, alpha=0.5) +
+  geom_smooth(data = nflqbsg8, aes(x = season_average_pass_attempts,y = made_postseason_num, color = season_bin),
+    method = "loess",se = FALSE) +
+  scale_color_manual(values=c("2012-2016"="chocolate", "2017-2020"="violet", "2021-2024"="cornflowerblue", "Baseline"="grey"))+
+  labs(
+    title = "Probability of Making Playoffs vs Avg Pass Attempts",
+    x = "Avg Pass Attempts per Game",
+    y = "Probability of Making Playoffs",
+    color = "Era"
+  )+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5))
+graph9
+```
+
+# Graph 12 - Shiny
+```{r, eval=FALSE}
+nflqbs <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes"),
+    pass_ypa = season_average_passing_yards / season_average_pass_attempts,
+    rush_ypa = season_average_rushing_yards / season_average_rush_attempts,
+    td_int_ratio = if_else(interception == 0, TD, TD / interception)) %>%
+  filter(games_played_season >= 8, pass_attempts >=100)
+ui <- fluidPage(
+  
+  titlePanel("Quarterback Efficiency and Playoff Appearance"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h4("Filters"),
+      selectInput("season", "Select Seasons:",
+                  choices = sort(unique(nflqbs$season)),
+                  selected = unique(nflqbs$season), multiple = TRUE),
+      
+      
+      
+      selectInput("eff_metric", "Efficiency Metric:",
+                  choices = c(
+                    "Completion %" = "comp_pct",
+                    "Passing Yards per Attempt" = "pass_ypa",
+                    "Rushing Yards per Attempt" = "rush_ypa",
+                    "TD/INT Ratio" = "td_int_ratio"
+                  )),
+      selectInput("plot_type2", "Plot Type:",
+                  choices = c("Scatter Plot" = "scatterplot",
+                              "Box Plot" = "boxplot")),
+      selectInput("highlight_qbs", "Highlight Quarterbacks (Scatter Plot Only):",
+                  choices = sort(unique(nflqbs$player_name)),
+                  multiple = TRUE),
+      selectInput("trend_type", "Trendline Method (Scatter Plot Only):",
+                  choices = c("Linear"="lm", "Smooth"="loess"),
+                  selected = "loess")
+      
+
+    ),
+    
+    mainPanel(
+      div(style="text-align:center;", h4(textOutput("summary_text"))),
+      plotOutput("scatter_plot"),
+      verbatimTextOutput("dynamic_summary")
+    )
+  )
+)
+server <- function(input, output, session){
+  
+  filtered_data <- reactive({
+    nflqbs %>%
+      filter(season %in% input$season) %>%
+      mutate(highlight = if_else(player_name %in% input$highlight_qbs, "Yes", "No"))
+  })
+  
+  output$summary_text <- renderText({
+    paste("Number of Quarterbacks Matching Filters:", nrow(filtered_data()))
+  })
+  
+  output$scatter_plot <- renderPlot({
+    data <- filtered_data()
+    metric_label <- c(
+      comp_pct = "Completion %",
+      pass_ypa = "Passing Yards per Attempt",
+      rush_ypa = "Rushing Yards per Attempt",
+      td_int_ratio = "TD/INT Ratio"
+    )[input$eff_metric]
+    if (input$plot_type2 == "scatterplot") {
+      ggplot(data, aes(
+        x = season_average_pass_attempts,
+        y = !!sym(input$eff_metric),
+        color = made_postseason
+      )) +
+        geom_point(aes(alpha = highlight, size = highlight)) +
+        geom_smooth(method = input$trend_type, se = FALSE, linewidth = 1) +
+        scale_alpha_manual(values = c("Yes" = 1, "No" = 0.3), guide = "none") +
+        scale_size_manual(values = c("Yes" = 5, "No" = 2), guide = "none") +
+        labs(
+          x = "Average Pass Attempts",
+          y = c(comp_pct = "Completion %",pass_ypa = "Passing Yards per Attempt", 
+                rush_ypa = "Rushing Yards per Attempt", 
+                td_int_ratio = "TD/INT Ratio")[input$eff_metric],
+          color = "Made Postseason?",
+          title = paste("QB", metric_label, "vs Workload (Pass Attempts)")
+        ) +
+        theme_minimal() +
+        theme(plot.title = element_text(face = "bold", hjust = 0.5))
+      
+    } else {
+      ggplot(data, aes(
+        x = factor(season),
+        y = !!sym(input$eff_metric),
+        fill = made_postseason
+      )) +
+        geom_boxplot() +
+        geom_jitter(aes(color = made_postseason), width=0.1, alpha = 0.5, show.legend=FALSE)+
+        labs(
+          x = "Season",
+          y = c(comp_pct = "Completion %",pass_ypa = "Passing Yards per Attempt", 
+                rush_ypa = "Rushing Yards per Attempt", 
+                td_int_ratio = "TD/INT Ratio")[input$eff_metric],
+          fill = "Made Postseason?",
+          title = paste("Distribution of", metric_label, "by Season")
+        ) +
+        theme_minimal() +
+        theme(plot.title = element_text(face="bold", hjust=0.5))
+    }
+  })
+  output$dynamic_summary <- renderPrint({
+    data <- filtered_data()
+    
+    reg_yes <- data %>% filter(made_postseason == "Yes")
+    reg_no  <- data %>% filter(made_postseason == "No")
+    
+    cat("Efficiency Summary by Postseason Status:\n\n")
+    cat("Made Postseason:\n")
+    cat(" - Avg", c(comp_pct = "Completion %",pass_ypa = "Passing Yards per Attempt", 
+                    rush_ypa = "Rushing Yards per Attempt", 
+                    td_int_ratio = "TD/INT Ratio")[input$eff_metric], ":", mean(reg_yes[[input$eff_metric]], na.rm=TRUE), "\n\n")
+    cat("Did NOT Make Postseason:\n")
+    cat(" - Avg", c(comp_pct = "Completion %",pass_ypa = "Passing Yards per Attempt", 
+                    rush_ypa = "Rushing Yards per Attempt", 
+                    td_int_ratio = "TD/INT Ratio")[input$eff_metric], ":", mean(reg_no[[input$eff_metric]], na.rm=TRUE), "\n")
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+link to app :<https://alexheyman.shinyapps.io/project/>
+
