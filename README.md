@@ -27,11 +27,11 @@ Quarterback performance was analyzed using passing, rushing, efficiency, and pos
 
 ## Tools & Technologies
 
-R — data cleaning, transformation, analysis, and visualization
-ggplot2 — static statistical visualizations
-Plotly — interactive and animated visualizations
-Shiny — interactive applications and user-controlled analysis
-Tableau — interactive dashboards and exploratory visualization
+- R — data cleaning, transformation, analysis, and visualization
+- ggplot2 — static statistical visualizations
+- Plotly — interactive and animated visualizations
+- Shiny — interactive applications and user-controlled analysis
+- Tableau — interactive dashboards and exploratory visualization
 
 
 ## Visualizations
