@@ -1,0 +1,547 @@
+---
+title: "3280 Project"
+output:
+  pdf_document: default
+  html_document: null
+---
+# Stat 3280 Final Project
+### Alex Heyman
+### 12/1/2025
+
+# The Evolution of the Quarterback Position in the NFL
+<br>
+<br>
+
+## Introduction
+
+The National Football League (NFL) was founded 105 years ago, but despite its longevity, the game is still evolving at a fast pace. Whether you watch the sport or not, every year brings changes to how one thought the game should be played. One clear thing noticed in recent years, for example, is the higher prevalence of dual threat quarterbacks, players who are effective in both passing and running the ball. In this project, I will use data from the 2012 NFL season up until the 2024 season to look at how teams have changed their focus over the last 13 years. Specifically, I will be focusing on quarterbacks as they are considered "game managers" and the most influential part of a football team. In addition to seeing if quarterbacks as a whole have evolved, this project will analyze if this change is leading to better team performance. Although football is not a one position sport, teams rarely compete well with a sub-par quarterback and the best performing teams typically have what are considered the best quarterbacks.
+<br>
+<br>
+
+## Questions to be Answered:
+
+How has the quarterback position evolved in regards to passing versus running the ball?
+
+What are the other relevant quarterback statistics that have seen changes in the last 13 years?
+
+Have the quarterbacks who adapted their game to be more versatile seen more success within the NFL?
+<br>
+<br>
+
+```{r, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(plotly)
+library(ggridges)
+library(readxl)
+library(shiny)
+```
+
+```{r, echo=FALSE}
+nfl <- read.csv("NFL.csv")
+excel_nfl <- read_excel("excelprojectdata.xlsx")
+nflqbscsv <- nfl %>% 
+  select(player_name, season, season_type, season_average_shotgun, season_average_qb_dropback) %>%
+  filter(season_type == "REG")
+  
+nflqbscsv$season <- as.factor(nflqbscsv$season)
+excel_nfl$season <- as.factor(excel_nfl$season)
+nflqbs <- left_join(excel_nfl, nflqbscsv, by = c("player_name", "season"),
+                    relationship = "many-to-many")
+nflqbs <- nflqbs %>%
+  filter(games_played_season >= 8, pass_attempts >=100)
+nflqbs$season_type <- NULL
+```
+### Part 1: How has the quarterback position evolved in regards to passing versus running the ball?
+<br>
+<br>
+
+#### Are Quarterbacks Running More?
+The following visualization and all other ones include all regular season data (no playoffs) for quarterbacks that played at least eight games (half or more) and threw at least 100 pass attempts throughout the year. In this graph, years have been lumped into bins except for the most recent season for easier viewing. Each of the bins represents three years of data.
+
+```{r, echo=FALSE}
+nflqbsg1 <- nflqbs %>%
+  mutate(
+    season_num = as.numeric(as.character(season)),
+    year_bin = cut(
+      season_num,
+      breaks = c(2012, 2015, 2018, 2021, 2024, 2025),   
+      labels = c("2012-2014", "2015-2017", "2018-2020", "2021-2023", "2024"), right = FALSE),
+    over_five = season_average_rush_attempts >= 5)
+
+facet_counts <- nflqbsg1 %>%
+  group_by(year_bin) %>%
+  summarize(count_over_five = sum(over_five))
+
+
+graph1 <- ggplot(nflqbsg1, aes(x=season_average_pass_attempts, y=season_average_rush_attempts, color=over_five))+
+  geom_point(alpha=0.7)+
+  scale_color_manual(values=c("TRUE" = "blue", "FALSE" = "darkgrey"))+
+  facet_wrap(~year_bin, ncol=5)+
+  theme_minimal()+
+  labs(
+    title="Avg Pass Attempts and Avg Rush Attempts by Bins",
+    subtitle = "All quarterbacks with over five attempts per game are blue",
+    x = "Average Pass Attempts per Game ",
+    y= "Average Rush Attempts per Game",
+    color = "Over 5 Attempts per Game:"
+  )+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5,size = 9),
+    strip.text = element_text(size = 10, face = "bold"),
+    strip.background=element_rect(fill="#AFCBFF80"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6)) +
+  geom_text(
+    data = facet_counts,
+    aes(
+      x = -Inf, 
+      y = Inf,
+      label = paste("QBs \u2265 5:", count_over_five)
+    ),
+    hjust = -0.1,   
+    vjust = 1.2,    
+    size = 3,
+    color = "black",
+    inherit.aes = FALSE
+  )
+graph1
+```
+
+This first scatter plot illustrates the clear trend in quarterbacks rushing the ball more often. From 2012-2014, there were only 15 total quarterbacks in those three seasons that averaged over 5 attempts per game. That is an average of 5 per season. However, the years 2021-2023, had 26 quarterbacks that fit this criteria. It also becomes clear when looking at more rush attempts per game as well. It appears in the 2012-2014 and 2015-2017 years that there were only 5 instances of averaging over 7.5 attempts a game. This starkly contrasts 2024 where in that one year, there were four who achieved this.
+
+
+Another way to look at all quarterbacks who hit a certain threshold is to view it dynamically. The metric used in the following is now average rushing yards per game and not rushing attempts. This visualization only includes the 2013-2024 season as to have four even bins of three seasons.
+
+<div class='tableauPlaceholder' id='viz1764024263648' style='position: relative'><noscript><a href='#'><img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;SP&#47;SPN3Y9H67&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz'  style='display:none;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='path' value='shared&#47;SPN3Y9H67' /> <param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;SP&#47;SPN3Y9H67&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /><param name='filter' value='publish=yes' /></object></div>                
+```{js, echo=FALSE}
+var divElement = document.getElementById('viz1764024263648');                    var vizElement = divElement.getElementsByTagName('object')[0];                    if ( divElement.offsetWidth > 800 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else if ( divElement.offsetWidth > 500 ) { vizElement.style.width='1000px';vizElement.style.height='827px';} else { vizElement.style.width='100%';vizElement.style.height='777px';}                     var scriptElement = document.createElement('script');                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';                    vizElement.parentNode.insertBefore(scriptElement, vizElement); 
+```
+
+In the Tableau visualization, one can see that there are many more quarterbacks with higher rushing yards per game in later years than earlier ones. For example, setting the season average rushing yards to at least 25 reveals that this only happened 22 times from 2013-2015, 23 times from 2016-2018, and 24 times from 2019-2024. From 2022-2024, this occurred 39 times. It is information like this that illustrates how quarterbacks have evolved.
+
+
+
+While it is obvious to see trends towards what can be described as "rushing quarterbacks," does that mean that they are passing the ball less? The prior graphs do not give a great indication of this so it is critical to see if passing is being replaced by rushing or if quarterbacks are being worked more as a whole.
+<br>
+<br>
+
+#### Are Quarterbacks Passing the Ball Less then?
+
+```{r, echo=FALSE}
+nflqbsg2 <- nflqbs %>%
+  select(player_name, games_played_season, season, pass_attempts, season_average_pass_attempts) 
+graph2 <- ggplot(nflqbsg2, aes(x=season, y=season_average_pass_attempts))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2, alpha = 0.2, color = "black")+
+  stat_summary(fun = median, geom = "text", aes(label = round(after_stat(y), 1)), 
+               color = "darkred", vjust = 1.5, fontface = "bold", position = position_dodge(width = 0.75))+
+  labs(
+    title= "Boxplot of Average Pass Attempts by Season",
+    y= "Season Average Pass Atempts",
+    x = "Season"
+  )+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+graph2
+```
+
+To answer the proposed question, it appears like there is a trend in quarterback passing attempts going downward. From 2012 to 2020, every year had a median passing attempt of at least 33.7 and some years got as high as 35.6. However, it can be seen that between 2021-2023, not a single season was over 33.3 pass attempts per game. It becomes apparent when 2024 was the only year out of these 13 years to have under 32. It is too early to see if 2024 specifically was just a lull but as a whole, it seems like quarterbacks are passing the ball less. By looking at this visualization paired with the previous ones illustrating the upward trend in rushing attempts and yards, it is fair to say that quarterbacks are running more and throwing less.
+
+Attempting passes and completing passes are two very different things. Before drawing any conclusions about quarterbacks neglecting the pass, it is important to see if the reason for attempting less is because they are more accurate and throwing the ball further.
+<br>
+<br>
+
+#### Are Quarterbacks Just More Accurate and Throwing Farther?
+
+```{r, echo=FALSE, warning=FALSE}
+nflqbsg3 <- nflqbs %>%
+  mutate(comp_bin = cut(comp_pct, breaks = c(0, 60, 65, 70, 75, 100),
+                        labels = c("50-60%", "60–65%", "65–70%", "70–75%", ">75%")))
+
+graph3 <- plot_ly(
+  data = nflqbsg3,
+  x = ~comp_pct,
+  y = ~season_average_passing_yards,
+  size = ~season_passing_yards,
+  frame = ~season,
+  color = ~comp_bin,
+  type = 'scatter',
+  mode = 'markers',
+  marker = list(line = list(width = 1, color = 'black')),
+  text = ~paste(
+  "Player:", player_name,
+  "<br>Season:", season,
+  "<br>Avg Yards/Game:", round(season_average_passing_yards, 1),
+  "<br>Total Passing Yards:", season_passing_yards,
+  "<br>Completion %:", round(comp_pct, 1))
+) %>%
+  layout(
+    title = list(text="Passing Yards Per Game and Completion Percentage", x=0.5),
+    xaxis = list(title = "Completion Percentage"),
+    yaxis = list(title = "Passing Yards Per Game"),
+    legend = list(title = list(text = "Completion Percentages"))
+  ) %>%
+animation_opts(
+    frame = 1500,      
+    transition = 750)
+
+graph3
+```
+
+```{r summary-table, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+nflqbsg3_summary_neat <- nflqbsg3 %>%
+  group_by(season) %>%
+  summarize(
+    avg_yards_per_game = round(mean(season_average_passing_yards, na.rm = TRUE), 1),
+    avg_completion_pct = round(mean(comp_pct, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) %>%
+  rename(
+    Season = season,
+    `Avg Yards/Game` = avg_yards_per_game,
+    `Avg Completion %` = avg_completion_pct
+  ) %>%
+  arrange(Season)
+cat('<div style="font-size:12px; width:50%; ">')
+knitr::kable(
+  nflqbsg3_summary_neat)
+cat('</div>')
+```
+
+Using both the animated plot and the supplemental table, it illustrates how quarterbacks are throwing the ball less than they used to. When looking at the plot, it starts with 2012-2019 showing the majority of quarterbacks having 225-300 passing yards on average. From 2020-2024, one can see a shift where most situate to the 200-250 range. This is supported with the table which shows that from 2012-2021, the average passing yards per game was at least 235 (with 7 of 10 years being over 247) and then from 2022-2024 it is no higher than 232 with 2024 being only 227. However, quarterback accuracy has gone up. Completion percentages from 2017 and earlier are all below 63.5% and every completion percentage after 2017 is close to or above 65%. 
+
+With less passing yards but a higher accuracy, it bring into question if interceptions have therefore decreased in this span. Before delving into other assessments of quarterbacks changes that indirectly affect the pass and run game, this is an important statistic to check.
+<br>
+<br>
+
+### Part 2: What are the other relevant quarterback statistics that have seen changes in the last 13 years?
+<br>
+<br>
+
+#### If Passing Yards Are Down, Does That Mean Interceptions Are As Well?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+nflqbsg4 <- nflqbs
+means <- nflqbsg4 %>%
+  group_by(season) %>%
+  summarize(mean_int = mean(interception))
+graph4 <-  ggplot(nflqbsg4, aes(x = interception, y = season, fill = season)) +
+  geom_density_ridges(alpha = 0.7, color = "lightgrey", scale=0.9) +
+  geom_point(data = means, aes(x = mean_int, y = season), color = "red", size = 2)+
+   geom_text(data = means,
+            aes(x = mean_int, y = season, label = round(mean_int, 1)),
+            color = "black", size = 2.5, fontface = "bold", nudge_y = 0.5)+
+  labs(
+    title = "Distribution of Interceptions by Season",
+    subtitle = "Mean interceptions by season indicated by red dot",
+    x = "Interceptions",
+    y = "Season"
+  ) +
+  scale_fill_manual(values = c("maroon3", "coral", "darkcyan", "brown2", "aquamarine","yellow2", "violet", "darkgoldenrod2", "cornflowerblue", "darkolivegreen", "darkmagenta", "deepskyblue", "chocolate"))+
+  theme_ridges() +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5),          
+    axis.title.x = element_text(hjust = 0.5),   
+    axis.title.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5,size = 9))
+
+graph4
+```
+
+In this density ridge plot, it can be seen how the distribution of interceptions has changed significantly from 2012 up until the most recent NFL season. In the early 2010s, the mean amount of interceptions was hovering between 11 and 12.5. In more recent years such as 2022-2024, not a single season had a mean over 10. The ridges also extend out with higher density further to the right in the earlier years tested. This chart illustrates that along with quarterbacks being more accurate, they also do a better job of not turning the ball over.
+
+In addition to information about quarterback passing attempts, yards, and interceptions, there is data about how many times they threw from the shotgun (started farther away from the line of scrimmage) and how many times they dropped back after snapping the ball. It is important to see if there is a connection between snapping the ball in a different position and potentially running it.
+<br>
+<br>
+
+#### Does Starting in the Shotgun Position Lead to More Running Plays?
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+nflqbsg5 <- nflqbs %>%
+  mutate(
+    season_num = as.numeric(as.character(season)),
+    season_bin = cut(x = season_num,                             
+      breaks = c(2012, 2017, 2021, 2025),   
+      labels = c("2012-2016", "2017-2020", "2021-2024"),
+      right = FALSE),
+    label_outlier = ifelse(season_average_rush_attempts > 10, player_name, NA))
+
+graph5<-ggplot(nflqbsg5, aes(x = season_average_shotgun, y = season_average_rush_attempts, color=season_bin)) +
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE, color = "red")+
+  geom_text(aes(label = label_outlier), 
+            hjust = .5, vjust = -0.9, size = 2, color = "black") +
+  scale_color_manual(values = c( "darkcyan", "violet", "darkgoldenrod2"))+
+  labs(title = "Rushing Attempts by Formation",
+       subtitle= "Years sorted into three bins",
+       x = "Shotgun Formation",
+       y = "Rushing Attempts Per Game") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5,size = 9))
+graph5
+```
+
+This scatter plot conveys the positive relationship between quarterbacks going in the shotgun formation and rush attempts in the game. This is not completely surprising because by snapping the ball from further back, the quarterback is given more time to decide if throwing is actually the best option. It also can give them an edge if they are attempting to run diagonally instead of straight forward. This visualization highlights the names of outliers who on average, rush at least 10 times per game if one is interested in that data.
+
+One final and common statistic for a quarterback is the amount of times they drop back after snapping the ball. This means that after catching the ball, they take a few steps into the pocket where they separate themselves from the defense before ultimately throwing or running the ball. However, it is a statistic typically indicative of a pass. This is because the quarterback immediately moves backwards after getting the ball and it takes valuable time for them to step back which leads them with less opportunities to escape an oncoming defender.
+<br>
+<br>
+
+#### If Quarterbacks are Throwing the Ball Less, Does that Mean Less Dropbacks?
+
+```{r, echo=FALSE}
+nflqbsg6 <- nflqbs %>%
+  group_by(season) %>%
+  summarize(mean_db = mean(season_average_qb_dropback, na.rm=TRUE))
+graph6 <- ggplot(nflqbsg6, aes(x=season, y=mean_db, fill=season))+
+  geom_col(alpha=0.8, color="black")+
+  geom_text(aes(label = round(mean_db, 1)), vjust = -0.5, size = 3)+
+  scale_fill_manual(values = c("maroon3", "coral", "darkcyan", "brown2", "aquamarine","yellow2", "violet", "darkgoldenrod2", "cornflowerblue", "darkolivegreen", "darkmagenta", "deepskyblue", "chocolate"))+
+  labs(
+    title= "Average Quarterback Dropback by Season",
+    x= "Season",
+    y= "Avergae Dropback"
+  )+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.position = "none")
+graph6
+```
+
+Based on this data, it seems as if there is no trend between quarterback dropback and season. While the 2024 season did have the lowest average dropback rate, it was not significantly lower than any other year. The year prior also has a rate that matches all others which makes it clear that without more years of data, it is not indicative of a downward trend in this statistic.
+
+With the conclusion of this graph, it brings up the final question, have the quarterbacks who adapted their game seen success within the NFL? This will help tie in all of the visualizations and convey if the trends seen actually do make a difference in making the playoffs.
+<br>
+<br>
+```{r, echo=FALSE}
+playoff_qbs <- data.frame(
+  season = c(
+    rep(2012, 12),
+    rep(2013, 12),
+    rep(2014, 12),
+    rep(2015, 12),
+    rep(2016, 12),
+    rep(2017, 12),
+    rep(2018, 12),
+    rep(2019, 12),
+    rep(2020, 13),
+    rep(2021, 14),
+    rep(2022, 14),
+    rep(2023, 13),
+    rep(2024, 14)
+  ),
+  player_name = c(
+    # 2012
+    "Joe Flacco","Alex Smith","Tom Brady","Matt Ryan","Matt Schaub",
+    "Russell Wilson","Aaron Rodgers","Peyton Manning","Andrew Luck",
+    "Christian Ponder","Andy Dalton","Robert Griffin",
+    
+    # 2013
+    "Peyton Manning","Andrew Luck","Colin Kaepernick","Drew Brees",
+    "Russell Wilson","Tom Brady","Alex Smith","Philip Rivers",
+    "Andy Dalton","Cam Newton","Nick Foles","Aaron Rodgers",
+    
+    # 2014
+    "Tom Brady","Andrew Luck","Russell Wilson","Joe Flacco","Aaron Rodgers",
+    "Tony Romo","Cam Newton","Ben Roethlisberger","Matthew Stafford",
+    "Peyton Manning","Andy Dalton","Drew Stanton",
+    
+    # 2015
+    "Cam Newton","Tom Brady","Carson Palmer","Ben Roethlisberger",
+    "Peyton Manning","Russell Wilson","Aaron Rodgers","Alex Smith",
+    "Kirk Cousins","Teddy Bridgewater","Brian Hoyer","Andy Dalton",
+    
+    # 2016
+    "Tom Brady","Matt Ryan","Aaron Rodgers","Ben Roethlisberger",
+    "Russell Wilson","Brock Osweiler","Dak Prescott","Eli Manning",
+    "Matthew Stafford","Alex Smith","Ryan Tannehill","Derek Carr",
+    
+    # 2017
+    "Tom Brady","Carson Wentz","Drew Brees","Blake Bortles","Case Keenum",
+    "Ben Roethlisberger","Marcus Mariota","Matt Ryan","Cam Newton",
+    "Alex Smith","Jared Goff","Tyrod Taylor",
+    
+    # 2018
+    "Tom Brady","Jared Goff","Patrick Mahomes","Drew Brees","Dak Prescott",
+    "Philip Rivers","Carson Wentz","Andrew Luck","Mitchell Trubisky",
+    "Deshaun Watson","Russell Wilson","Lamar Jackson",
+    
+    # 2019
+    "Patrick Mahomes","Deshaun Watson","Russell Wilson","Aaron Rodgers",
+    "Jimmy Garoppolo","Kirk Cousins","Ryan Tannehill","Lamar Jackson",
+    "Josh Allen","Tom Brady","Drew Brees","Carson Wentz",
+    
+    # 2020
+    "Tom Brady","Patrick Mahomes","Josh Allen","Aaron Rodgers",
+    "Ben Roethlisberger","Baker Mayfield","Drew Brees","Lamar Jackson",
+    "Jared Goff","Philip Rivers","Mitchell Trubisky","Russell Wilson",
+    "Ryan Tannehill",
+    
+    # 2021
+    "Matthew Stafford","Joe Burrow","Patrick Mahomes","Josh Allen","Tom Brady",
+    "Jimmy Garoppolo","Derek Carr","Jalen Hurts","Dak Prescott","Mac Jones",
+    "Aaron Rodgers","Ryan Tannehill","Ben Roethlisberger","Kyler Murray",
+    
+    # 2022
+    "Joe Burrow","Patrick Mahomes","Josh Allen","Jalen Hurts","Jimmy Garoppolo",
+    "Dak Prescott","Trevor Lawrence","Daniel Jones","Tom Brady","Kirk Cousins",
+    "Justin Herbert","Geno Smith","Lamar Jackson","Tua Tagovailoa",
+    
+    # 2023
+    "Patrick Mahomes","Jared Goff","Brock Purdy","Baker Mayfield","Jordan Love",
+    "C.J. Stroud","Lamar Jackson","Dak Prescott","Josh Allen","Matthew Stafford",
+    "Jalen Hurts","Tua Tagovailoa","Kenny Pickett",
+    
+    # 2024
+    "Jayden Daniels","Jalen Hurts","Patrick Mahomes","Josh Allen","Matthew Stafford",
+    "C.J. Stroud","Lamar Jackson","Jared Goff","Russell Wilson","Sam Darnold",
+    "Justin Herbert","Jordan Love","Baker Mayfield","Bo Nix"
+  ),
+  stringsAsFactors = FALSE
+)
+
+```
+
+### Part 3: Have the quarterbacks who adapted their game to be more versatile seen more success within the NFL?
+<br>
+<br>
+
+As a note, if a quarterback played more than eight games in the season and that team made the playoffs while they were hurt, it includes them. If no quarterback played at least eight games for a team and they made the playoffs, then they are not included. For example, no quarterback for the Washington Football Team in 2020 started at least eight games this season so none of their data is included in the visualization despite them making the playoffs. However, the 2017 Philadelphia Eagles had their quarterback, Carson Wentz, play 13 games and lead them to the playoffs. He ended up getting hurt and missed the final three games of the season and their playoff games. In this visualization, Carson Wentz would still be considered making the playoffs since he started over eight games that season.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+nflqbsg7 <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes")
+  )
+graph7 <- plot_ly(
+  data = nflqbsg7,
+  x = ~season_average_rushing_yards,
+  y = ~season_average_passing_yards,
+  size = ~season_passing_yards,
+  frame = ~season,
+  color = ~made_postseason,
+  colors = c("Yes" = "blue", "No" = "orange"),
+  type = 'scatter',
+  mode = 'markers',
+  marker = list(line = list(width = 1, color = 'black')),
+  text = ~paste(
+  "Player:", player_name,
+  "<br>Season:", season,
+  "<br>Avg Passing Yards/Game:", round(season_average_passing_yards, 1),
+  "<br>Total Passing Yards:", season_passing_yards,
+  "<br>Avg Rushing Yards/Game:", round(season_average_rushing_yards, 1),
+  "<br>Total Rushing Yards:", rushing_yards)
+) %>%
+  layout(
+    title = list(text="Passing and Rushing Yards per Game", x=0.5),
+    xaxis = list(title = "Average Rushing Yards"),
+    yaxis = list(title = "Average Passing Yards"),
+    legend = list(title = list(text = "Made Postseason"))
+  ) %>%
+animation_opts(
+    frame = 1500,      
+    transition = 750)
+graph7
+
+```
+
+
+This animated visual compares average rushing and passing yards for quarterbacks who made and did not make the playoffs. Through this graph, it becomes clear that quarterbacks who rushed for more yards typically have higher rates of making the playoffs but it was less obvious. There was not a single threshold that was noticeable where if a quarterback ran for a certain amount of yards, they would make the postseason. For example, the 2021 Baltimore Ravens missed the playoffs with their quarterback averaging over 10 more rushing yards per game than the next highest quarterback. However, if a quarterback averages over ~40 rushing yards per game, they made the playoffs about half of the time as opposed to the 37.5% or 43.75% chance if there are 12 or 14 teams in the postseason.
+<br>
+<br>
+
+The prior graph illustrated average rushing yards and average passing yards but not pass attempts and rush attempts. In the following shiny app, there is a scatter plot of average pass attempt and rush attempts. There is also the ability to filter the data based on specific seasons, emphasize specific quarterbacks, filter whether the team made the postseason, and a customizable trend line. There is also a summary stat at the top that updates with the other filters. Finally, a line graph of average rush attempts and season is shown. This can be customized to be turned into a bar chart and has the ability to toggle between it showing the mean, median, and total.
+
+[![Shiny App 1](3280finalshiny1.png)](https://alexheyman.shinyapps.io/Stat3280Shiny1/)
+
+Click on the graph or click this link to adjust filters: <https://alexheyman.shinyapps.io/Stat3280Shiny1/>
+
+
+In this Shiny app, it illustrates how having higher average pass and rush attempts leads to better chances of making the postseason. While it is not extremely different, there is still a noticeable trend. When one starts to not include some of the earlier years, more of a gap pops up between making the postseason and not. The line graph shows how in 10 out of 13 years, postseason quarterbacks had more average rushing attempts than non-postseason quarterbacks.
+
+Since the prior animation did not give conclusive evidence on if quarterbacks rushing or passing more leads to performance, it is critical to look at a probability plot to see if better correlations can be illustrated.
+<br>
+<br>
+
+```{r, echo=FALSE, message=FALSE}
+nflqbsg8 <- nflqbs %>%
+  mutate(season = as.numeric(as.character(season))) %>%
+  left_join(playoff_qbs %>% mutate(made_postseason = "Yes"),
+            by = c("season", "player_name")) %>%
+  mutate(
+    made_postseason = if_else(is.na(made_postseason), "No", "Yes"),
+    made_postseason_num = if_else(made_postseason == "Yes", 1, 0),
+    season_num = as.numeric(as.character(season)),
+    season_bin = cut(x = season_num,                             
+      breaks = c(2012, 2017, 2021, 2025),   
+      labels = c("2012-2016", "2017-2020", "2021-2024"),
+      right = FALSE)
+  )
+baseline_data <- nflqbsg8 %>%
+  select(season_average_rush_attempts, made_postseason_num, season_average_pass_attempts)
+
+graph8 <- ggplot() +
+  geom_smooth(data = baseline_data, aes(x = season_average_rush_attempts, y = made_postseason_num, color = "Baseline"),
+    method = "loess",se = FALSE, alpha=0.5) +
+  geom_smooth(data = nflqbsg8, aes(x = season_average_rush_attempts,y = made_postseason_num, color = season_bin),
+    method = "loess",se = FALSE) +
+  scale_color_manual(values=c("2012-2016"="chocolate", "2017-2020"="violet", "2021-2024"="cornflowerblue", "Baseline"="grey"))+
+  labs(
+    title = "Probability of Making Playoffs vs Avg Rush Attempts",
+    x = "Avg Rush Attempts per Game",
+    y = "Probability of Making Playoffs",
+    color = "Era"
+  )+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5))
+graph8
+graph9 <- ggplot() +
+  geom_smooth(data = baseline_data, aes(x = season_average_pass_attempts, y = made_postseason_num, color = "Baseline"),
+    method = "loess",se = FALSE, alpha=0.5) +
+  geom_smooth(data = nflqbsg8, aes(x = season_average_pass_attempts,y = made_postseason_num, color = season_bin),
+    method = "loess",se = FALSE) +
+  scale_color_manual(values=c("2012-2016"="chocolate", "2017-2020"="violet", "2021-2024"="cornflowerblue", "Baseline"="grey"))+
+  labs(
+    title = "Probability of Making Playoffs vs Avg Pass Attempts",
+    x = "Avg Pass Attempts per Game",
+    y = "Probability of Making Playoffs",
+    color = "Era"
+  )+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5))
+graph9
+```
+
+Both of these probability plots give important insight into the chances of making the playoffs based on average rush and pass attempts.
+
+Starting with the average rush attempts plot, one can see that from 2012-2016, the probability of making the playoffs steadily increases up until about 7 rushes per game and then sees a slight fall. From 2017-2020, the data is more volatile but shows that quarterbacks with over 5 attempts a game had about a 50% chance of making the playoffs and those that had about 9 attempts had as high as 70% odds. Finally, the 2021-2024 line shows that more mobile quarterbacks still have a better chance of making the playoffs but it is more steady than the other years. The baseline probability does a good job of showing a moderately positive correlation. The stark change to stability from 2021-2024 indicates how the league has adapted to the benefit that prior quarterbacks were getting from running the ball more.
+
+In the pass attempts and playoff probability graph, it remains consistent for the 2012-2016, 2017-2020, and the baseline eras. The three lines all start with a low probability of making the playoffs and then have logarithmic growth all until around the 28-32 mark before decreasing. The 2021-2024 season has a similar first peak, but then after slightly falling, it raises drastically for quarterbacks over 35 attempts. While this seems significant, looking back on the box plot from earlier reveals very few quarterbacks from 2021-2024 actually attempted at least 35 passes. In fact, only four players in those four years attempted an average of at least 40 passes a game.
+
+
+The last pieces of data to look at regarding playoff appearances are efficiency metrics. In the following Shiny app, one can toggle between four of these and also plot it against quarterback workload (average pass attempts) or by season.
+<br>
+<br>
+
+[![Shiny App 2.1](3280shiny2.1.png)](https://alexheyman.shinyapps.io/project/)
+[![Shiny App 2.2](3280shiny2.2.png)](https://alexheyman.shinyapps.io/project/)
+Click on either of the graphs or click this link to adjust filters:<https://alexheyman.shinyapps.io/project/>
+
+When looking at the scatter plot part of the Shiny app, one can see how quarterbacks with a higher completion percent, passing yards per attempt, and touchdown to interception ratio were more likely to make the playoffs. This visualization makes it appear as if average pass attempts has little to nothing to do with making the playoffs compared to these efficiencies. The only one that is widely different is rushing yards per attempt. In this plot, rushing yards per attempt and average pass attempts had a negative relationship for both the making and not making postseason lines. 
+
+The box plot revealed similar insight based on year. For completion percent, passing yards per attempt, and touchdown to interception ratio, they all saw higher medians and box sizes for quarterbacks who made the playoffs versus those who did not. There was not a single case where this principle strayed for those three efficiency metrics. For rushing yards per attempt, the data was pretty split. For five out of thirteen years, the median rushing yards per attempt was higher for quarterbacks who made the playoffs compared to those who did not. This insight, paired with the scatter plot version, reveal that even though prior visualizations showed that quarterbacks who rushed more are more likely to make the playoffs, rushing yards per attempt is not an effective metric to predict making the postseason.
+<br>
+
+### Conclusion
+
+
+Through the analysis of this data, a lot can be learned about how quarterbacks have changed over the last 13 years. The information gained about how quarterbacks rush the ball more and pass the ball less shows that the nature of football is changing as a whole. The "cookie cutter" quarterbacks that used to exist no longer remains as players adapt their game to be different than the rest. It is interesting that statistics like completion percentage and interceptions have gone down, showing how quarterbacks are both making smarter plays and opting to run the ball over making a riskier pass. Relating this information to actual performance and making the playoffs, it can be seen how dual threat (quarterbacks who can also run ) have a higher rate of making the playoffs. While it does not occur every year, most seasons see quarterbacks in the playoffs have more rush attempts than quarterbacks not in the playoffs. Based on the density charts, one can see that while the probability of making the playoffs generally increases with rush attempts per game, pass attempts per game has a peak and then steeply drops off. Finally, the last visualization illustrates how having high efficiency metrics such as completion percentage, passing yards per attempt, and touchdown to interception ratio are correlated with quarterbacks making the playoffs.
+
+Tying everything together conveys how important quarterbacks are to an entire football team because of how influential their statistics are in a team's likelihood of making the playoffs Though there have been trends in quarterbacks adapting their game leading to season success, once enough players change how they play, then everyone is on an even playing field. It is interesting to look at how football is evolving and realize that every new year can lead to a period of change.
