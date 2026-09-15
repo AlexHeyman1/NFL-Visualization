@@ -4,10 +4,6 @@ output:
   pdf_document: default
   html_document: null
 ---
-# Stat 3280 Final Project
-### Alex Heyman
-### 12/1/2025
-
 # The Evolution of the Quarterback Position in the NFL
 <br>
 <br>
