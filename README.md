@@ -5,6 +5,10 @@ This project explores how the NFL quarterback position evolved from the 2012 thr
 
 Using 13 seasons of quarterback data, I created a series of static and interactive visualizations to examine whether quarterbacks have become more versatile over time and whether those changes are associated with a greater likelihood of reaching the postseason.
 
+## Full Project
+
+[View the NFL Quarterback Visualization Report](Final_Project.html)
+
 ## Research Questions
 
 The project focuses on three main questions:
@@ -66,5 +70,5 @@ This project includes interactive Shiny applications and a Tableau dashboard tha
 - [Quarterback Efficiency & Postseason App](https://alexheyman.shinyapps.io/project/)
 
 ### Tableau Dashboard
-[Tableau Link](https://public.tableau.com/app/profile/alex.heyman/viz/FinalStat3280Tableau1/Dashboard1)
+[Explore the Interactive Dashboard](https://public.tableau.com/app/profile/alex.heyman/viz/FinalStat3280Tableau1/Dashboard1)
 
