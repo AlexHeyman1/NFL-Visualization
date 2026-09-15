@@ -7,7 +7,7 @@ Using 13 seasons of quarterback data, I created a series of static and interacti
 
 ## Full Project
 
-[View the NFL Quarterback Visualization Report](https://alexheyman1.github.io/NFL-Visualization/?utm_source=chatgpt.com))
+[View the NFL Quarterback Visualization Report](https://alexheyman1.github.io/NFL-Visualization/?utm_source=chatgpt.com)
 
 ## Research Questions
 
